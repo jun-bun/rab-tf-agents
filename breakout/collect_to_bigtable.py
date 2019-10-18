@@ -15,7 +15,9 @@ from util.gcp_io import gcp_load_pipeline, gcs_load_weights, cbt_global_iterator
 from util.logging import TimeLogger
 
 import gym
-import csv
+#import csv
+import json
+import collections
 
 from tf_agents.agents.dqn import dqn_agent
 from tf_agents.drivers import dynamic_step_driver
@@ -30,7 +32,7 @@ from tf_agents.trajectories import trajectory
 from tf_agents.utils import common
 
 tf.compat.v1.enable_v2_behavior()
-np.set_printoptions(threshold=np.inf)
+#np.set_printoptions(threshold=np.inf)
 
 SCOPES = ['https://www.googleapis.com/auth/cloud-platform']
 SERVICE_ACCOUNT_FILE = 'cbt_credentials.json'
@@ -62,9 +64,9 @@ if __name__ == '__main__':
     parser.add_argument('--bucket-id', type=str, default='rab-rl-bucket')
     parser.add_argument('--prefix', type=str, default='breakout')
     parser.add_argument('--tmp-weights-filepath', type=str, default='/tmp/model_weights_tmp.h5')
-    parser.add_argument('--num-cycles', type=int, default=1000000)
-    parser.add_argument('--num-episodes', type=int, default=10)
-    parser.add_argument('--max-steps', type=int, default=10)
+    parser.add_argument('--num-cycles', type=int, default=1)
+    parser.add_argument('--num-episodes', type=int, default=3)
+    parser.add_argument('--max-steps', type=int, default=5)
     parser.add_argument('--log-time', default=False, action='store_true')
     args = parser.parse_args()
 
@@ -102,6 +104,13 @@ if __name__ == '__main__':
     collect_policy = agent.collect_policy
     random_policy = random_tf_policy.RandomTFPolicy(env.time_step_spec(),
                                                 env.action_spec())
+    
+    class NumpyEncoder(json.JSONEncoder):
+        def default(self, obj):
+            if isinstance(obj, np.ndarray):
+                return obj.tolist()
+            return json.JSONEncoder.default(self, obj)
+    
     #Data Collection
     #@test {"skip": true}
     def collect_step(environment, policy):
@@ -114,16 +123,15 @@ if __name__ == '__main__':
         action_step = policy.action(time_step)
         next_time_step = environment.step(action_step.action)
         
-        print("timestep:")
-        print(time_step)
-        print("time step type:", type(time_step))
-        print("actionstep")
-        print(action_step)
-        print("action_step type", type(action_step))
-        print("next_time_step")
-        print(next_time_step)
-        print("next_time_step type", type(next_time_step))
-
+        #print("timestep:")
+        #print(time_step)
+        #print("time step type:", type(time_step))
+        #print("actionstep")
+        #print(action_step)
+        #print("action_step type", type(action_step))
+        #print("next_time_step")
+        #print(next_time_step)
+        #print("next_time_step type", type(next_time_step))
         return time_step, action_step, next_time_step
 
     def collect_data(env, policy, steps):
@@ -134,12 +142,48 @@ if __name__ == '__main__':
             policy: A collection policy
             steps: Maximum number of steps to collect
         """
-            with open(r'collection.csv', 'a') as fd:
-                for _ in range(steps):
-                    time_step, action_step, next_time_step = collect_step(env, policy)
-                    data = [time_step, action_step, next_time_step]
-                    writer = csv.writer(fd)
-                    writer.writerow(data)
+        data = []
+        for i in range(steps):
+            time_step, action_step, next_time_step = collect_step(env, policy)
+            traj = collections.namedtuple('Traj_' + (str(i)),
+                                    ('time_step', 'action_step', 'next_time_step'))
+            data.append(traj(time_step = time_step, action_step = action_step, next_time_step = next_time_step))
+        return data
+
+    def write_data(data, ident):
+        """
+            data : trajectory objects
+            id : string identifier
+        """
+        print(data)
+        with open(r'collection.json', 'a') as fd:
+            for items in range(len(data)):
+                items_to_json = { ident : 
+                    {
+                        'time_step_'+ (str(data[items])): {
+                        "step_type": data[items].time_step.step_type.numpy(),
+                        "reward": data[items].time_step.reward.numpy(),
+                        "observation": data[items].time_step.observation.numpy(),
+                        "discount" : data[items].time_step.discount.numpy()
+                        },
+                    
+                    'action_step_'+ (str(data[items])): {
+                        "action": data[items].action_step.action.numpy(),
+                        "state": data[items].action_step.state,
+                        "info": data[items].action_step.info
+                        },
+
+                    'next_time_step_'+ (str(data[items])):{
+                        "step_type": data[items].time_step.step_type.numpy(),
+                        "reward": data[items].time_step.reward.numpy(),
+                        "observation": data[items].time_step.observation.numpy(),
+                        "discount" : data[items].time_step.discount.numpy()
+                        }
+                    }
+                }
+                data = json.dumps(items_to_json, separators=(',', ':'), cls=NumpyEncoder)
+                json.dump(data, fd)
+                fd.write("\n")
 
     #GLOBAL ITERATOR
     global_i = cbt_global_iterator(cbt_table)
@@ -157,6 +201,12 @@ if __name__ == '__main__':
             if args.log_time is True: time_logger.reset()
 
             #RL LOOP GENERATES A TRAJECTORY
-            collect_data(env, random_policy, steps=args.num_episodes)
+            data = collect_data(env, random_policy, steps=args.max_steps)
+            write_data(data, "Rab-Agent" + (str(args.num_cycles)))
     env.close()
+    print("Done Collecting --- Reading file")
+
+    with open(r'collection.json', 'r') as file_reader :
+        json_data = [json.loads(line) for line in file_reader]
+        #print (json_data)
     print("-> Done!")
