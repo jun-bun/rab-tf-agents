@@ -143,11 +143,13 @@ if __name__ == '__main__':
             steps: Maximum number of steps to collect
         """
         data = []
+        Traj = collections.namedtuple('Traj', ('time_step', 'action_step', 'next_time_step'))
         for i in range(steps):
             time_step, action_step, next_time_step = collect_step(env, policy)
-            traj = collections.namedtuple('Traj_' + (str(i)),
-                                    ('time_step', 'action_step', 'next_time_step'))
-            data.append(traj(time_step = time_step, action_step = action_step, next_time_step = next_time_step))
+            d = Traj._make([time_step, action_step, next_time_step])
+            #d = Traj('time_step' = time_step, 'action_step' = action_step, 'next_time_step'=next_time_step)
+            #print (d.time_step)
+            data.append(d)
         return data
 
     def write_data(data, ident):
@@ -155,35 +157,47 @@ if __name__ == '__main__':
             data : trajectory objects
             id : string identifier
         """
-        print(data)
+        print("data items")
+        print ([i for i in data])
+        print (data[1]._fields)
+        print ("attr")
+        print (getattr(data[1], 'action_step'))
+        print(data[1].action_step)
+        print(data[1].time_step)
+        #print(data)
         with open(r'collection.json', 'a') as fd:
-            for items in range(len(data)):
-                items_to_json = { ident : 
+            i = 0
+            for item in data:
+                print("items: ", item)
+                print("ident", ident)
+                #print("data[1]", item)
+                items_to_json = { ident: 
                     {
-                        'time_step_'+ (str(data[items])): {
-                        "step_type": data[items].time_step.step_type.numpy(),
-                        "reward": data[items].time_step.reward.numpy(),
-                        "observation": data[items].time_step.observation.numpy(),
-                        "discount" : data[items].time_step.discount.numpy()
+                        'time_step_'+ (str(i)): {
+                        "step_type": item.time_step.step_type.numpy(),
+                        "reward": item.time_step.reward.numpy(),
+                        "observation": item.time_step.observation.numpy(),
+                        "discount" : item.time_step.discount.numpy()
                         },
                     
-                    'action_step_'+ (str(data[items])): {
-                        "action": data[items].action_step.action.numpy(),
-                        "state": data[items].action_step.state,
-                        "info": data[items].action_step.info
+                    'action_step_'+ (str(i)): {
+                        "action": item.action_step.action.numpy(),
+                        "state": item.action_step.state,
+                        "info": item.action_step.info
                         },
 
-                    'next_time_step_'+ (str(data[items])):{
-                        "step_type": data[items].time_step.step_type.numpy(),
-                        "reward": data[items].time_step.reward.numpy(),
-                        "observation": data[items].time_step.observation.numpy(),
-                        "discount" : data[items].time_step.discount.numpy()
+                    'next_time_step_'+ (str(i)):{
+                        "step_type": item.time_step.step_type.numpy(),
+                        "reward": item.time_step.reward.numpy(),
+                        "observation": item.time_step.observation.numpy(),
+                        "discount" : item.time_step.discount.numpy()
                         }
                     }
                 }
                 data = json.dumps(items_to_json, separators=(',', ':'), cls=NumpyEncoder)
                 json.dump(data, fd)
                 fd.write("\n")
+                i =+ 1
 
     #GLOBAL ITERATOR
     global_i = cbt_global_iterator(cbt_table)
@@ -202,11 +216,13 @@ if __name__ == '__main__':
 
             #RL LOOP GENERATES A TRAJECTORY
             data = collect_data(env, random_policy, steps=args.max_steps)
-            write_data(data, "Rab-Agent" + (str(args.num_cycles)))
+            print("data: ", data[1].action_step.action.numpy())
+            write_data(data, "Rab-Agent_" + (str(args.num_cycles)))
     env.close()
     print("Done Collecting --- Reading file")
 
     with open(r'collection.json', 'r') as file_reader :
         json_data = [json.loads(line) for line in file_reader]
         #print (json_data)
+    print(json_data.Rab-Agent_1)
     print("-> Done!")
