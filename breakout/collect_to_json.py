@@ -48,9 +48,56 @@ FC_LAYER_PARAMS=(512,200)
 LEARNING_RATE=0.00042
 GAMMA = 0.9
 
+def write_data(data, ident):
+    """
+        data : trajectory objects
+        id : string identifier
+    print("data items")
+    print ([i for i in data])
+    print (data[1]._fields)
+    print ("attr")
+    print (getattr(data[1], 'action_step'))
+    print(data[1].action_step)
+    print(data[1].time_step)
+    #print(data)
+    """
+    with open(r'collection.json', 'a') as fd:
+        i = 0
+        for item in data:
+            #print("items: ", item)
+            #print("ident", ident)
+            #print("data[1]", item)
+            items_to_json = { ident: 
+                {
+                    'time_step_'+ (str(i)): {
+                    "step_type": item.time_step.step_type.numpy(),
+                    "reward": item.time_step.reward.numpy(),
+                    "observation": item.time_step.observation.numpy(),
+                    "discount" : item.time_step.discount.numpy()
+                    },
+                
+                'action_step_'+ (str(i)): {
+                    "action": item.action_step.action.numpy(),
+                    "state": item.action_step.state,
+                    "info": item.action_step.info
+                    },
+
+                'next_time_step_'+ (str(i)):{
+                    "step_type": item.time_step.step_type.numpy(),
+                    "reward": item.time_step.reward.numpy(),
+                    "observation": item.time_step.observation.numpy(),
+                    "discount" : item.time_step.discount.numpy()
+                    }
+                }
+            }
+            data = json.dumps(items_to_json, separators=(',', ':'), cls=NumpyEncoder)
+            json.dump(data, fd)
+            fd.write("\n")
+            i =+ 1
+
 @gin.configurable
-def train_eval(
-    root_dir,
+def collector_v1(
+    #root_dir,
     env_name='Breakout-v0',
     num_iterations=100000,
     train_sequence_length=1,
@@ -62,10 +109,10 @@ def train_eval(
     output_fc_layer_params=(20,),
 
     # Params for collect
-    initial_collect_steps=1000,
+    initial_collect_steps=1,
     collect_steps_per_iteration=1,
     epsilon_greedy=0.1,
-    ##replay_buffer_capacity=100000,
+    replay_buffer_capacity=100,
     ):
 
     print("-> Initializing Gym environement...")
@@ -97,11 +144,24 @@ def train_eval(
     random_policy = random_tf_policy.RandomTFPolicy(env.time_step_spec(),
                                                 env.action_spec())
 
-    collect_driver = dynamic_step_driver.DynamicStepDriver(
-        tf_env,
-        collect_policy,
-        observers=[replay_buffer.add_batch] + train_metrics,
-        num_steps=collect_steps_per_iteration)
+    replay_buffer = tf_uniform_replay_buffer.TFUniformReplayBuffer(
+        data_spec=agent.collect_data_spec,
+        batch_size=env.batch_size,
+        max_length=replay_buffer_capacity)
+
+    initial_collect_policy = random_tf_policy.RandomTFPolicy(
+        env.time_step_spec(), env.action_spec())
+
+    dynamic_step_driver.DynamicStepDriver(
+        env,
+        initial_collect_policy,
+        observers=[replay_buffer.add_batch],
+        num_steps=initial_collect_steps).run()
+
+    print ("collect_driver: ", dynamic_step_driver)
+
+    time_step = None
+    policy_state = collect_policy.get_initial_state(env.batch_size)
 
 if __name__ == '__main__':
     #COMMAND-LINE ARGUMENTS
@@ -123,7 +183,9 @@ if __name__ == '__main__':
     credentials = service_account.Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE, scopes=SCOPES)
     cbt_table, gcs_bucket = gcp_load_pipeline(args.gcp_project_id, args.cbt_instance_id, args.cbt_table_name, args.bucket_id, credentials)
 
+    collector_v1(num_iterations=1)
     print("Done Collecting --- Reading file")
+    """
     with open(r'collection.json', 'r') as file_reader :
         json_data = [json.loads(line) for line in file_reader]
         #print (json_data)
@@ -133,3 +195,4 @@ if __name__ == '__main__':
             count += 1
         print (json_data)
     print("-> Done!")
+    """
