@@ -8,6 +8,8 @@ from tqdm import tqdm
 import numpy as np
 import tensorflow as tf
 
+print (tf.__version__)
+print (tf.__file__)
 from google.oauth2 import service_account
 
 from protobuf.experience_replay_pb2 import Trajectory, Info
@@ -64,7 +66,7 @@ if __name__ == '__main__':
     parser.add_argument('--bucket-id', type=str, default='rab-rl-bucket')
     parser.add_argument('--prefix', type=str, default='breakout')
     parser.add_argument('--tmp-weights-filepath', type=str, default='/tmp/model_weights_tmp.h5')
-    parser.add_argument('--num-cycles', type=int, default=1)
+    parser.add_argument('--num-cycles', type=int, default=2)
     parser.add_argument('--num-episodes', type=int, default=3)
     parser.add_argument('--max-steps', type=int, default=5)
     parser.add_argument('--log-time', default=False, action='store_true')
@@ -156,7 +158,6 @@ if __name__ == '__main__':
         """
             data : trajectory objects
             id : string identifier
-        """
         print("data items")
         print ([i for i in data])
         print (data[1]._fields)
@@ -165,6 +166,7 @@ if __name__ == '__main__':
         print(data[1].action_step)
         print(data[1].time_step)
         #print(data)
+        """
         with open(r'collection.json', 'a') as fd:
             i = 0
             for item in data:
@@ -217,12 +219,15 @@ if __name__ == '__main__':
             #RL LOOP GENERATES A TRAJECTORY
             data = collect_data(env, random_policy, steps=args.max_steps)
             print("data: ", data[1].action_step.action.numpy())
-            write_data(data, "Rab-Agent_" + (str(args.num_cycles)))
+            write_data(data, "Rab-Agent_: " + (str(cycle)) + "_" + (str(i)))
     env.close()
     print("Done Collecting --- Reading file")
 
     with open(r'collection.json', 'r') as file_reader :
         json_data = [json.loads(line) for line in file_reader]
         #print (json_data)
-    print(json_data.Rab-Agent_1)
+        count = 0
+        for i in json_data:
+            print ("count: ", count)
+            count += 1
     print("-> Done!")
