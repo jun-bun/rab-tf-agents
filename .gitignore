@@ -10,3 +10,13 @@ __pycache__
 .vscode/
 .idea/
 /breakout/collection.json
+*.DS_store
+agents
+envs
+*.h5
+get-pip.py
+*.json
+__pycache__
+wandb
+mnist.py
+UnitySDK.log

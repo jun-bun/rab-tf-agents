@@ -35,7 +35,7 @@ def gcp_load_pipeline(gcp_project_id, cbt_instance_id, cbt_table_name, bucket_id
     return cbt_table, gcs_bucket
 
 def gcs_load_weights(model, bucket, prefix, tmp_weights_filepath):
-    model_prefix = prefix + '_model'
+    model_prefix = prefix + '_model_test'
     blobs_list = bucket.list_blobs(max_results=10, prefix=model_prefix)
     newest_blob = None
     for i,blob in enumerate(blobs_list):
@@ -48,7 +48,7 @@ def gcs_load_weights(model, bucket, prefix, tmp_weights_filepath):
             newest_blob.download_to_filename(tmp_weights_filepath)
             model.load_weights(tmp_weights_filepath)
         except:
-            print("-> Model [{}] is currently being written.".format(newest_blob.public_url))
+            print("-> Model [{}] is currently being written.".format(model.public_url))
             return
         model.public_url = newest_blob.public_url
         print("-> Fetched most recent model [{}].".format(model.public_url))
@@ -76,10 +76,3 @@ def cbt_global_iterator(cbt_table):
         cbt_table.mutate_rows([gi_row])
         global_i = 0  
     return global_i
-
-def cbt_read_rows(cbt_table, prefix, train_steps, global_i):
-    start_i, end_i = global_i - train_steps, global_i - 1
-    start_row_key = prefix + '_trajectory_' + str(start_i)
-    end_row_key = prefix + '_trajectory_' + str(end_i)
-    partial_rows = cbt_table.read_rows(start_row_key, end_row_key, limit=train_steps, end_inclusive=True)
-    return [row for row in partial_rows]
